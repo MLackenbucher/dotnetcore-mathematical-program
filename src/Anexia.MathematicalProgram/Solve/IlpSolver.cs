@@ -1,5 +1,7 @@
+using System.Collections.Immutable;
 using Anexia.MathematicalProgram.Extensions;
 using Anexia.MathematicalProgram.Model;
+using Anexia.MathematicalProgram.Model.Interval;
 using Anexia.MathematicalProgram.Model.Scalar;
 using Anexia.MathematicalProgram.Model.Variable;
 using Anexia.MathematicalProgram.Result;
@@ -61,7 +63,9 @@ public sealed class IlpSolver(IlpSolverType solverType) : MemberwiseEquatable<Il
                            LinearExpr.Term(variables[term.Variable], term.Coefficient.Value))) +
                        LinearExpr.Constant(completedOptimizationModel.ObjectiveFunction.Offset?.Value ?? 0),
             completedOptimizationModel.ObjectiveFunction.Maximize);
-        if (solverParameter.ExportModelFilePath is not null) model.ExportToFile(solverParameter.ExportModelFilePath);
+        if (solverParameter.ExportModelFilePath is not null)
+            File.WriteAllText(solverParameter.ExportModelFilePath, model.ExportToMpsString(false));
+
 
         var result = solver.Solve(model);
         if (!solver.HasSolution())
@@ -73,7 +77,73 @@ public sealed class IlpSolver(IlpSolverType solverType) : MemberwiseEquatable<Il
                 variable => variable.Key,
                 variable => new RealScalar(solver.Value(variable.Value))).AsReadOnly());
 
-        return ResultHandling.Handle(result, switchedSolver, solutionValues, solver.ObjectiveValue,
+        return ResultHandling.Handle(result, switchedSolver,
+            solutionValues, solver.ObjectiveValue,
             solver.BestObjectiveBound);
     }
+
+    /// <summary>
+    /// Solves the given model.
+    /// </summary>
+    /// <param name="modelInMpsFormat">The model to be solved in MPS format.</param>
+    /// <param name="solverParameter">Parameters to be passed to the underlying solver.</param>
+    /// <returns>Solver result containing solution information.</returns>
+    public ISolverResult<IIntegerVariable<IRealScalar>, RealScalar, IRealScalar> Solve(
+        ModelAsMpsFormat modelInMpsFormat,
+        SolverParameter solverParameter)
+    {
+        var switchedSolver = false;
+        var solver = new Solver(SolverType.ToEnumString());
+
+        if (!solver.SolverIsSupported())
+        {
+            solver = new Solver(IlpSolverType.Scip.ToEnumString());
+            switchedSolver = true;
+        }
+
+        if (solverParameter.TimeLimitInMilliseconds is not null)
+            solver.SetTimeLimitInSeconds(solverParameter.TimeLimitInMilliseconds.AsSeconds);
+
+        if (solverParameter.EnableSolverOutput.Value) solver.EnableOutput(true);
+        solver.SetSolverSpecificParameters(
+            solverParameter.ToSolverSpecificParameters(switchedSolver ? IlpSolverType.Scip : SolverType));
+
+
+        var model = new Google.OrTools.ModelBuilder.Model();
+
+        model.ImportFromMpsString(modelInMpsFormat.Model);
+
+        if (solverParameter.ExportModelFilePath is not null)
+            File.WriteAllText(solverParameter.ExportModelFilePath, model.ExportToMpsString(false));
+
+
+        var result = solver.Solve(model);
+        if (!solver.HasSolution())
+            return ResultHandling.Handle<IIntegerVariable<IRealScalar>, RealScalar, IRealScalar>(result,
+                switchedSolver);
+
+        var variables = new Dictionary<IIntegerVariable<IRealScalar>, RealScalar>();
+        for (var i = 0; i < model.VariablesCount(); i++)
+        {
+            var variable = model.VarFromIndex(i);
+            variables.Add(new IntegerVariable<IRealScalar>(new RealInterval(variable.LowerBound, variable.UpperBound),
+                variable.Name), new RealScalar(solver.Value(variable)));
+        }
+
+
+        var solutionValues =
+            new SolutionValues<IIntegerVariable<IRealScalar>, RealScalar, IRealScalar>(variables.AsReadOnly());
+
+        return ResultHandling.Handle(result, switchedSolver,
+            solutionValues, solver.ObjectiveValue,
+            solver.BestObjectiveBound);
+    }
+
+    /// <summary>
+    /// Solves the given model with default parameter.
+    /// </summary>
+    /// <param name="modelInMpsFormat">The model to be solved in MPS format.</param>
+    /// <returns>Solver result containing solution information.</returns>
+    public ISolverResult<IIntegerVariable<IRealScalar>, RealScalar, IRealScalar> Solve(
+        ModelAsMpsFormat modelInMpsFormat) => Solve(modelInMpsFormat, new SolverParameter());
 }

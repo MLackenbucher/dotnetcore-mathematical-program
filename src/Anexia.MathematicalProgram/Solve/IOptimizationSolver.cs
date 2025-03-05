@@ -35,4 +35,13 @@ public interface IOptimizationSolver<in TVariable, in TCoefficient, in TInterval
     public ISolverResult<TVariable, TSolutionType, TIntervalScalar> Solve(
         ICompletedOptimizationModel<TVariable, TCoefficient, TIntervalScalar> model,
         SolverParameter solverParameter);
+
+    /// <summary>
+    /// Solves the given model with default solver parameter.
+    /// </summary>
+    /// <param name="model">The model to be solved.</param>
+    /// <returns>Solver result containing solution information.</returns>
+    public ISolverResult<TVariable, TSolutionType, TIntervalScalar> Solve(
+        ICompletedOptimizationModel<TVariable, TCoefficient, TIntervalScalar> model) =>
+        Solve(model, new SolverParameter());
 }
