@@ -40,8 +40,11 @@ public static class LpExample
         var optimizationModel = model.SetObjective(objFunction);
 
         // Create SCIP Solver and solve model. Output is enabled using solver parameter.
-        var result = SolverFactory.SolverFor(LpSolverType.Glop).Solve(optimizationModel,
+        var result =new LpSolver(LpSolverType.GurobiMixedIntegerProgramming).Solve(new ModelAsMpsFormat(File.ReadAllText("model.lp")) ,
             new SolverParameter(new EnableSolverOutput(true)));
+        
+        
+        
 
         Console.WriteLine(result);
         // Output: ObjectiveValue: 2, IsFeasible: True, IsOptimal: True, OptimalityGap: 0 
