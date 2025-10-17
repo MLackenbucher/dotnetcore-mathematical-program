@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Anexia.MathematicalProgram.Extensions;
 using Anexia.MathematicalProgram.Model;
 using Anexia.MathematicalProgram.Model.Interval;
@@ -7,6 +6,7 @@ using Anexia.MathematicalProgram.Model.Variable;
 using Anexia.MathematicalProgram.Result;
 using Anexia.MathematicalProgram.SolverConfiguration;
 using Google.OrTools.ModelBuilder;
+using Gurobi;
 using Microsoft.Extensions.Logging;
 
 namespace Anexia.MathematicalProgram.Solve;
@@ -26,7 +26,7 @@ public sealed class IlpSolver(
     private ILogger<IlpSolver>? Logger { get; } = logger;
 
     /// <summary>
-    /// Solves the given optimization model. Switches solver to SCIP, then the given type is not available.
+    /// Solves the given optimization model. Switches solver to SCIP, when the given type is not available.
     /// </summary>
     /// <param name="completedOptimizationModel">The model to be solved.</param>
     /// <param name="solverParameter">Parameters to be passed to the underlying solver.</param>
@@ -36,6 +36,26 @@ public sealed class IlpSolver(
             completedOptimizationModel,
         SolverParameter solverParameter)
     {
+        if (SolverType == IlpSolverType.GurobiNativeIntegerProgramming)
+        {
+            try
+            {
+                return new GurobiNativeSolver().Solve(completedOptimizationModel,
+                    solverParameter);
+            }
+            catch (MathematicalProgramException exception) when (exception.InnerException is GRBException)
+            {
+                if (exception.Message.Contains("No Gurobi license found"))
+                {
+                    Logger.LogInformation("No Gurobi licence found. Original Exception {Exception}", exception);
+                    return new IlpSolver(FallbackSolver, FallbackSolver, Logger).Solve(completedOptimizationModel,
+                        solverParameter);
+                }
+
+                throw;
+            }
+        }
+
         var (configuredSolver, solverWasSwitched) = InitializeSolver(solverParameter);
 
         if (configuredSolver is null)
@@ -186,8 +206,19 @@ public sealed class IlpSolver(
 
     private void ExportModelIfRequested(SolverParameter solverParameter, Google.OrTools.ModelBuilder.Model model)
     {
-        if (solverParameter.ExportModelFilePath is null) return;
-        Logger?.LogInformation("Exporting model to {ExportModelFilePath}", solverParameter.ExportModelFilePath);
-        model.WriteToMpsFile(solverParameter.ExportModelFilePath, false);
+        if (!solverParameter.ExportModelFilePaths.Any()) return;
+        Logger?.LogInformation("Exporting model to {ExportModelFilePath}",
+            string.Join(", ", solverParameter.ExportModelFilePaths));
+
+        if (solverParameter.ExportModelFilePaths.SingleOrDefault(item => item.EndsWith(".mps")) is not null)
+        {
+            model.WriteToMpsFile(solverParameter.ExportModelFilePaths.SingleOrDefault(item => item.EndsWith(".mps")),
+                false);
+        }
+
+        foreach (var modelFilePath in solverParameter.ExportModelFilePaths.Where(item => !item.EndsWith(".mps")))
+        {
+            model.ExportToFile(modelFilePath);
+        }
     }
 }

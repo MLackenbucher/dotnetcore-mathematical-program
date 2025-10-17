@@ -26,7 +26,7 @@ namespace Anexia.MathematicalProgram.Result;
 public readonly record struct SolverResult<TVariable, TCoefficient, TVariableInterval>(
     ISolutionValues<TVariable, TCoefficient, TVariableInterval> SolutionValues,
     ObjectiveValue? ObjectiveValue,
-    IsFeasible IsFeasible,
+    IsFeasible? IsFeasible,
     IsOptimal IsOptimal,
     OptimalityGap? OptimalityGap,
     SolverResultStatus SolverResultStatus,
