@@ -26,7 +26,7 @@ public static class SolverFactory
         solverType switch
         {
             IlpSolverType.CbcIntegerProgramming => new IlpCbcSolver(),
-            IlpSolverType.GurobiIntegerProgramming or
+            IlpSolverType.GurobiNativeIntegerProgramming or IlpSolverType.GurobiIntegerProgramming or
                 IlpSolverType.Scip or IlpSolverType.HiGhs => new IlpSolver(solverType, fallbackSolverType, logger),
             _ => throw new ArgumentOutOfRangeException(nameof(solverType), solverType, null)
         };
