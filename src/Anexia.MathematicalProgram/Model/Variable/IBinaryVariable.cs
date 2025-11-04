@@ -10,10 +10,9 @@ using Anexia.MathematicalProgram.Model.Scalar;
 namespace Anexia.MathematicalProgram.Model.Variable;
 
 /// <summary>
-/// Represents an integer variable.
+/// Represents an binary variable.
 /// </summary>
-/// <typeparam name="TIntervalValue">The variable's interval type.</typeparam>
-public interface IIntegerVariable<out TIntervalValue> : IBinaryVariable<TIntervalValue>
+public interface IBinaryVariable<out TIntervalValue> : IVariable<TIntervalValue>
     where TIntervalValue : IAddableScalar<TIntervalValue, TIntervalValue>
 {
 }

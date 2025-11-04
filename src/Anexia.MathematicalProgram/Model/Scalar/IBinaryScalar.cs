@@ -1,5 +1,5 @@
 // ------------------------------------------------------------------------------------------
-//  <copyright file = "IRealScalar.cs" company = "ANEXIA® Internetdienstleistungs GmbH">
+//  <copyright file = "IIntegerScalar.cs" company = "ANEXIA® Internetdienstleistungs GmbH">
 //  Copyright (c) ANEXIA® Internetdienstleistungs GmbH. All rights reserved.
 //  </copyright>
 // ------------------------------------------------------------------------------------------
@@ -7,12 +7,12 @@
 namespace Anexia.MathematicalProgram.Model.Scalar;
 
 /// <summary>
-/// Represents a real scalar.
+/// Represents an integer scalar.
 /// </summary>
-public interface IRealScalar : IAddableScalar<IRealScalar, IRealScalar>
+public interface IBinaryScalar : IAddableScalar<IBinaryScalar, IBinaryScalar>
 {
     /// <summary>
     /// The value.
     /// </summary>
-    public new double Value { get; }
+    public new bool Value { get; }
 }

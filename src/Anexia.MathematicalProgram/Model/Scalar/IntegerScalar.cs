@@ -16,6 +16,8 @@ namespace Anexia.MathematicalProgram.Model.Scalar;
 public record IntegerScalar(long Value) : IIntegerScalar,
     IAddableScalar<IntegerScalar, IntegerScalar>
 {
+    private bool _value;
+
     /// <summary>
     /// The value represented as real scalar.
     /// </summary>
@@ -70,4 +72,15 @@ public record IntegerScalar(long Value) : IIntegerScalar,
     public override string ToString() => $"{Value:+#;-#;+0}";
 
     public static implicit operator IntegerScalar(long scalar) => new(scalar);
+    public IBinaryScalar Add(IBinaryScalar scalar)
+    {
+        throw new NotImplementedException();
+    }
+
+    public IBinaryScalar Subtract(IBinaryScalar scalar)
+    {
+        throw new NotImplementedException();
+    }
+
+    bool IBinaryScalar.Value => _value;
 }
