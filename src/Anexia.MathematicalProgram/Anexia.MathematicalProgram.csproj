@@ -22,7 +22,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Update="Google.OrTools" Version="9.14.6206" />
+      <PackageReference Update="Google.OrTools" Version="9.15.6755" />
       <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.6" />
     </ItemGroup>
 
