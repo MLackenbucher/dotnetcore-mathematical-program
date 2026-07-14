@@ -7,7 +7,9 @@ using Anexia.MathematicalProgram.Model.Variable;
 using Anexia.MathematicalProgram.Result;
 using Anexia.MathematicalProgram.SolverConfiguration;
 using Google.OrTools.ModelBuilder;
+using Gurobi;
 using Microsoft.Extensions.Logging;
+using static Google.OrTools.Init.operations_research_init;
 
 namespace Anexia.MathematicalProgram.Solve;
 
@@ -26,7 +28,7 @@ public sealed class IlpSolver(
     private ILogger<IlpSolver>? Logger { get; } = logger;
 
     /// <summary>
-    /// Solves the given optimization model. Switches solver to SCIP, then the given type is not available.
+    /// Solves the given optimization model. Switches solver to SCIP, when the given type is not available.
     /// </summary>
     /// <param name="completedOptimizationModel">The model to be solved.</param>
     /// <param name="solverParameter">Parameters to be passed to the underlying solver.</param>
@@ -36,6 +38,26 @@ public sealed class IlpSolver(
             completedOptimizationModel,
         SolverParameter solverParameter)
     {
+        if (SolverType == IlpSolverType.GurobiNativeIntegerProgramming)
+        {
+            try
+            {
+                return new GurobiNativeSolver().Solve(completedOptimizationModel,
+                    solverParameter);
+            }
+            catch (MathematicalProgramException exception) when (exception.InnerException is GRBException)
+            {
+                if (exception.Message.Contains("No Gurobi license found"))
+                {
+                    Logger.LogInformation("No Gurobi licence found. Original Exception {Exception}", exception);
+                    return new IlpSolver(FallbackSolver, FallbackSolver, Logger).Solve(completedOptimizationModel,
+                        solverParameter);
+                }
+
+                throw;
+            }
+        }
+
         var (configuredSolver, solverWasSwitched) = InitializeSolver(solverParameter);
 
         if (configuredSolver is null)
@@ -87,6 +109,24 @@ public sealed class IlpSolver(
             solutionValues, configuredSolver.ObjectiveValue,
             configuredSolver.BestObjectiveBound);
     }
+
+    /// <summary>
+    /// Solves the given optimization model directly using the specified solver API. Switches solver to specified default solver, when the given type is not available.
+    /// </summary>
+    /// <param name="completedOptimizationModel">The model to be solved.</param>
+    /// <param name="solverParameter">Parameters to be passed to the underlying solver.</param>
+    /// <returns>Solver result containing solution information.</returns>
+    public ISolverResult<IIntegerVariable<IRealScalar>, RealScalar, IRealScalar> SolveWithoutORTools(
+        ICompletedOptimizationModel<IIntegerVariable<IRealScalar>, IRealScalar, IRealScalar>
+            completedOptimizationModel,
+        SolverParameter solverParameter) =>
+        SolverType switch
+        {
+            IlpSolverType.GurobiIntegerProgramming => new GurobiNativeSolver().Solve(completedOptimizationModel,
+                solverParameter),
+            _ => throw new NotImplementedException(
+                "The specified type is not yet implemented. Use OR Tools for solving")
+        };
 
     /// <summary>
     /// Solves the given model by minimizing the objective function.
