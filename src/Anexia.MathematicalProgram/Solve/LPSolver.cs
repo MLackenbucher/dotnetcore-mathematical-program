@@ -139,10 +139,16 @@ public sealed class LpSolver : MemberwiseEquatable<LpSolver>,
 
     private void ExportModelIfRequested(SolverParameter solverParameter, Google.OrTools.ModelBuilder.Model model)
     {
-        if (solverParameter.ExportModelFilePath is not null)
+        if (solverParameter.ExportModelFilePaths.SingleOrDefault(item => item.EndsWith(".mps")) is not null)
         {
-            File.WriteAllText(solverParameter.ExportModelFilePath, model.ExportToMpsString(false));
-            File.WriteAllText(solverParameter.ExportModelFilePath.Replace(".", "_lp."), model.ExportToLpString(false));
+            File.WriteAllText(solverParameter.ExportModelFilePaths.Single(item => item.EndsWith(".mps")),
+                model.ExportToMpsString(false));
+        }
+
+        if (solverParameter.ExportModelFilePaths.SingleOrDefault(item => item.EndsWith(".lp")) is not null)
+        {
+            File.WriteAllText(solverParameter.ExportModelFilePaths.Single(item => item.EndsWith(".lp")),
+                model.ExportToLpString(false));
         }
     }
 }

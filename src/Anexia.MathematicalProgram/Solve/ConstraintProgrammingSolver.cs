@@ -68,7 +68,14 @@ public sealed class ConstraintProgrammingSolver
             else model.Minimize(expr);
         }
 
-        if (solverParameter.ExportModelFilePath is not null) model.ExportToFile(solverParameter.ExportModelFilePath);
+        if (solverParameter.ExportModelFilePaths.Any())
+        {
+            
+            foreach (var file in solverParameter.ExportModelFilePaths)
+            {
+                model.ExportToFile(file);
+            }
+        }
 
         var solver = new CpSolver();
         if (solverParameter.TimeLimitInMilliseconds is not null)

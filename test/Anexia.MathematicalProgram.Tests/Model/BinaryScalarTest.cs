@@ -32,8 +32,7 @@ public sealed class BinaryScalarTest
     {
         var result = left.Add(right);
 
-        Assert.Equal(expected.IsOne, result.IsOne);
-        Assert.Equal(expected.Value, result.Value);
+        Assert.Equal(expected, result);
     }
 
     [Theory]
@@ -42,8 +41,7 @@ public sealed class BinaryScalarTest
     {
         var result = left.Subtract(right);
 
-        Assert.Equal(expected.IsOne, result.IsOne);
-        Assert.Equal(expected.Value, result.Value);
+        Assert.Equal(expected, result);
     }
 
     [Theory]
@@ -53,8 +51,7 @@ public sealed class BinaryScalarTest
         IBinaryScalar r = right;
         var result = left.Add(r);
 
-        Assert.Equal(expected.IsOne, result.IsOne);
-        Assert.Equal(expected.Value, result.Value);
+        Assert.Equal(expected, result);
     }
 
     [Theory]
@@ -73,8 +70,7 @@ public sealed class BinaryScalarTest
         IBinaryScalar r = right;
         var result = left.Subtract(r);
 
-        Assert.Equal(expected.IsOne, result.IsOne);
-        Assert.Equal(expected.Value, result.Value);
+        Assert.Equal(expected, result);
     }
 
     [Theory]
@@ -92,8 +88,7 @@ public sealed class BinaryScalarTest
     {
         var result = left + right;
 
-        Assert.Equal(expected.IsOne, result.IsOne);
-        Assert.Equal(expected.Value, result.Value);
+        Assert.Equal(expected, result);
     }
 
     [Theory]
@@ -102,7 +97,6 @@ public sealed class BinaryScalarTest
     {
         var result = left - right;
 
-        Assert.Equal(expected.IsOne, result.IsOne);
-        Assert.Equal(expected.Value, result.Value);
+        Assert.Equal(expected, result);
     }
 }

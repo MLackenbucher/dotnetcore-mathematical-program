@@ -7,11 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [2.8.0] - 2026-07-10
+## [2.9.0] - 2026-07-10
 
 ### Added
 
-- Update Version of Google OR Tools to 9.15.
+- Added possibility to use Gurobi Solver directly via the API, not using Google OR-Tools.
+
+### Changed
+- Usage of AdditionalSolverParmateters. Changed list of string to list of key-value pairs.
 
 ## [2.7.0] - 2025-11-10
 

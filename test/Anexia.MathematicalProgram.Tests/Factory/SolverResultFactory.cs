@@ -16,7 +16,7 @@ public static class SolverResultFactory
         SolverResult<TVariable, TScalar, TVariableInterval>(
             ISolutionValues<TVariable, TScalar, TVariableInterval> solutionValues,
             ObjectiveValue? objectiveValue,
-            IsFeasible isFeasible,
+            IsFeasible? isFeasible,
             IsOptimal isOptimal,
             OptimalityGap? optimalityGap,
             SolverResultStatus solverResultStatus,

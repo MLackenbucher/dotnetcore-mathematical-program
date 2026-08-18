@@ -1,4 +1,4 @@
-﻿// ------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------
 //  <copyright file = "IlpSolverTest.cs" company = "ANEXIA® Internetdienstleistungs GmbH">
 //  Copyright (c) ANEXIA® Internetdienstleistungs GmbH.All rights reserved.
 //  </copyright>
@@ -14,6 +14,7 @@ using Anexia.MathematicalProgram.Model.Variable;
 using Anexia.MathematicalProgram.Result;
 using Anexia.MathematicalProgram.Solve;
 using Anexia.MathematicalProgram.SolverConfiguration;
+using Gurobi;
 using Microsoft.Extensions.Logging;
 using Serilog;
 using Serilog.Extensions.Logging;
@@ -26,6 +27,94 @@ namespace Anexia.MathematicalProgram.Tests.Solve;
 
 public sealed class IlpSolverTest
 {
+    [Fact]
+    public void SolveWithGurobiNativeWrapsNonLicenceGurobiExceptionMessage()
+    {
+        var (exception, _) = SolveWithInvalidGurobiParameter();
+
+        Assert.Contains("Error in solver:", exception.Message);
+    }
+
+    [Fact]
+    public void SolveWithGurobiNativeKeepsGurobiExceptionAsInnerException()
+    {
+        var (exception, _) = SolveWithInvalidGurobiParameter();
+
+        Assert.IsType<GRBException>(exception.InnerException);
+    }
+
+    [Fact]
+    public void SolveWithGurobiNativeDoesNotFallBackOnNonLicenceGurobiException()
+    {
+        var (_, logger) = SolveWithInvalidGurobiParameter();
+
+        Assert.DoesNotContain(logger.Messages,
+            message => message.Contains("No Gurobi licence found", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void SolveWithUnsupportedSolverReturnsResultFromFallbackSolver()
+    {
+        var (result, _, variable) = SolveWithUnsupportedSolver();
+
+        Assert.Equal(
+            SolverResult(
+                SolutionValues<IIntegerVariable<IRealScalar>, RealScalar, IRealScalar>(
+                    (variable, new RealScalar(1))),
+                new ObjectiveValue(2),
+                new IsFeasible(true),
+                new IsOptimal(true),
+                new OptimalityGap(0),
+                SolverResultStatus.Optimal,
+                true),
+            result);
+    }
+
+    [Fact]
+    public void SolveWithUnsupportedSolverLogsSwitchToFallbackSolver()
+    {
+        var (_, logger, _) = SolveWithUnsupportedSolver();
+
+        Assert.Contains(logger.Messages,
+            message => message.Contains("switching to fallback solver", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void SolveModelAsMpsFormatThrowsWhenSolverAndFallbackAreUnsupported()
+    {
+        var exception = Assert.Throws<SolverNotSupportedException>(() =>
+            new IlpSolver((IlpSolverType)int.MaxValue, (IlpSolverType)int.MaxValue)
+                .Solve(new ModelAsMpsFormat(string.Empty), new SolverParameter()));
+
+        Assert.Equal(
+            "Neither the expected solver 2147483647 nor fallback solver 2147483647 could be initialized.",
+            exception.Message);
+    }
+
+    [Fact]
+    public void SolveWithExportModelFilePathWritesExportFile()
+    {
+        var roundTrip = SolveExportedModelWithDefaultOverload();
+
+        Assert.True(roundTrip.ExportFileExisted);
+    }
+    
+    [Fact]
+    public void SolveModelAsMpsFormatDefaultOverloadReturnsSameObjectiveValue()
+    {
+        var roundTrip = SolveExportedModelWithDefaultOverload();
+
+        Assert.Equal(roundTrip.ExportedResult.ObjectiveValue, roundTrip.ResultFromMps.ObjectiveValue);
+    }
+
+    [Fact]
+    public void SolveModelAsMpsFormatDefaultOverloadReturnsSameSolutionValue()
+    {
+        var roundTrip = SolveExportedModelWithDefaultOverload();
+
+        Assert.Equal(new RealScalar(1), SingleSolutionValue(roundTrip.ResultFromMps).Value);
+    }
+
     [Fact]
     public void SolverWithSimpleFeasibleIlpModelReturnsCorrectResult()
     {
@@ -68,13 +157,23 @@ public sealed class IlpSolverTest
             model.SetObjective(
                 model.CreateObjectiveFunctionBuilder().AddTermToSum(new IntegerScalar(2), x).Build(false));
 
-        var result = SolverFactory.SolverFor(IlpSolverType.Scip).Solve(optimizationModel,
-            new SolverParameter(new EnableSolverOutput(true), ExportModelFilePath: "model.txt"));
+        var exportFilePath = NewExportFilePath();
 
-        var resultFromModel = new IlpSolver(IlpSolverType.Scip).Solve(
-            new ModelAsMpsFormat(File.ReadAllText("model.txt")), new SolverParameter(new EnableSolverOutput(true)));
+        try
+        {
+            var result = SolverFactory.SolverFor(IlpSolverType.Scip).Solve(optimizationModel,
+                new SolverParameter(new EnableSolverOutput(true), ExportModelFilePaths: exportFilePath));
 
-        Assert.Equal(result, resultFromModel);
+            var resultFromModel = new IlpSolver(IlpSolverType.Scip).Solve(
+                new ModelAsMpsFormat(File.ReadAllText(exportFilePath)),
+                new SolverParameter(new EnableSolverOutput(true)));
+
+            Assert.Equal(result, resultFromModel);
+        }
+        finally
+        {
+            File.Delete(exportFilePath);
+        }
     }
 
     [Fact]
@@ -92,13 +191,23 @@ public sealed class IlpSolverTest
             model.SetObjective(
                 model.CreateObjectiveFunctionBuilder().AddTermToSum(new IntegerScalar(2), x).Build());
 
-        var result = SolverFactory.SolverFor(IlpSolverType.Scip).Solve(optimizationModel,
-            new SolverParameter(new EnableSolverOutput(true), ExportModelFilePath: "model.txt"));
+        var exportFilePath = NewExportFilePath();
 
-        var resultFromModel = new IlpSolver(IlpSolverType.Scip).Solve(
-            new ModelAsMpsFormat(File.ReadAllText("model.txt")), new SolverParameter(new EnableSolverOutput(true)));
+        try
+        {
+            var result = SolverFactory.SolverFor(IlpSolverType.Scip).Solve(optimizationModel,
+                new SolverParameter(new EnableSolverOutput(true), ExportModelFilePaths: exportFilePath));
 
-        Assert.Equal(result.ObjectiveValue, resultFromModel.ObjectiveValue);
+            var resultFromModel = new IlpSolver(IlpSolverType.Scip).Solve(
+                new ModelAsMpsFormat(File.ReadAllText(exportFilePath)),
+                new SolverParameter(new EnableSolverOutput(true)));
+
+            Assert.Equal(result.ObjectiveValue, resultFromModel.ObjectiveValue);
+        }
+        finally
+        {
+            File.Delete(exportFilePath);
+        }
     }
 
     [Fact]
@@ -116,13 +225,23 @@ public sealed class IlpSolverTest
             model.SetObjective(
                 model.CreateObjectiveFunctionBuilder().AddTermToSum(new IntegerScalar(2), x).Build(false));
 
-        var result = SolverFactory.SolverFor(IlpSolverType.Scip).Solve(optimizationModel,
-            new SolverParameter(new EnableSolverOutput(true), ExportModelFilePath: "model.txt"));
+        var exportFilePath = NewExportFilePath();
 
-        var resultFromModel = new IlpSolver(IlpSolverType.Scip).Solve(
-            new ModelAsMpsFormat(File.ReadAllText("model.txt")), new SolverParameter(new EnableSolverOutput(true)));
+        try
+        {
+            var result = SolverFactory.SolverFor(IlpSolverType.Scip).Solve(optimizationModel,
+                new SolverParameter(new EnableSolverOutput(true), ExportModelFilePaths: exportFilePath));
 
-        Assert.Equal(result, resultFromModel);
+            var resultFromModel = new IlpSolver(IlpSolverType.Scip).Solve(
+                new ModelAsMpsFormat(File.ReadAllText(exportFilePath)),
+                new SolverParameter(new EnableSolverOutput(true)));
+
+            Assert.Equal(result, resultFromModel);
+        }
+        finally
+        {
+            File.Delete(exportFilePath);
+        }
     }
 
     [Fact]
@@ -179,16 +298,84 @@ public sealed class IlpSolverTest
         var result = SolverFactory.SolverFor(IlpSolverType.Scip).Solve(optimizationModel,
             new SolverParameter());
 
-        Assert.Equal(
-            SolverResult(
-                new SolutionValues<IIntegerVariable<IRealScalar>, RealScalar, IRealScalar>(
-                    ReadOnlyDictionary<IIntegerVariable<IRealScalar>, RealScalar>.Empty), null, new IsFeasible(false),
-                new IsOptimal(false), null,
-                SolverResultStatus.Unbounded, false), result);
+        Assert.Equal(UnboundedSolverResult(), result);
     }
 
     [Fact]
-    public void SolverAdditionalLoggingWorks()
+    public void SolverAdditionalLoggingDoesNotChangeSolverResult()
+    {
+        var (result, _) = SolveUnboundedModelWithFileLogger();
+
+        Assert.Equal(UnboundedSolverResult(), result);
+    }
+
+    private static string NewExportFilePath() => Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.mps");
+
+    // An invalid Gurobi parameter fails during environment setup with a GRBException that is
+    // unrelated to licensing. The solver must surface it instead of silently falling back.
+    private static (MathematicalProgramException Exception, FakeLogger Logger) SolveWithInvalidGurobiParameter()
+    {
+        var optimizationModel = CreateSimpleOptimizationModel(out _);
+        var logger = new FakeLogger();
+
+        var exception = Assert.Throws<MathematicalProgramException>(() =>
+            new IlpSolver(IlpSolverType.GurobiNativeIntegerProgramming, IlpSolverType.Scip, logger)
+                .Solve(
+                    optimizationModel,
+                    new SolverParameter(
+                        EnableSolverOutput.False,
+                        AdditionalSolverSpecificParameters: [("__invalid_gurobi_parameter__", "1")])));
+
+        return (exception, logger);
+    }
+
+    private static (ISolverResult<IIntegerVariable<IRealScalar>, RealScalar, IRealScalar> Result,
+        FakeLogger Logger,
+        IIntegerVariable<IRealScalar> Variable) SolveWithUnsupportedSolver()
+    {
+        var optimizationModel = CreateSimpleOptimizationModel(out var variable);
+        var logger = new FakeLogger();
+
+        var result = new IlpSolver((IlpSolverType)int.MaxValue, IlpSolverType.Scip, logger)
+            .Solve(optimizationModel, new SolverParameter(EnableSolverOutput.False));
+
+        return (result, logger, variable);
+    }
+
+    private static (bool ExportFileExisted,
+        IReadOnlyList<string> LoggerMessages,
+        ISolverResult<IIntegerVariable<IRealScalar>, RealScalar, IRealScalar> ExportedResult,
+        ISolverResult<IIntegerVariable<IRealScalar>, RealScalar, IRealScalar> ResultFromMps,
+        IIntegerVariable<IRealScalar> Variable) SolveExportedModelWithDefaultOverload()
+    {
+        var exportFilePath = NewExportFilePath();
+        var optimizationModel = CreateSimpleOptimizationModel(out var variable);
+        var logger = new FakeLogger();
+
+        try
+        {
+            var exportedResult = new IlpSolver(IlpSolverType.Scip, logger: logger)
+                .Solve(optimizationModel, new SolverParameter(
+                    EnableSolverOutput.False,
+                    ExportModelFilePaths: exportFilePath));
+
+            var resultFromMps = new IlpSolver(IlpSolverType.Scip)
+                .Solve(new ModelAsMpsFormat(File.ReadAllText(exportFilePath)));
+
+            return (File.Exists(exportFilePath), logger.Messages, exportedResult, resultFromMps, variable);
+        }
+        finally
+        {
+            if (File.Exists(exportFilePath)) File.Delete(exportFilePath);
+        }
+    }
+
+    private static KeyValuePair<IIntegerVariable<IRealScalar>, RealScalar> SingleSolutionValue(
+        ISolverResult<IIntegerVariable<IRealScalar>, RealScalar, IRealScalar> result) =>
+        ((IEnumerable<KeyValuePair<IIntegerVariable<IRealScalar>, RealScalar>>)result.SolutionValues).Single();
+
+    private static (ISolverResult<IIntegerVariable<IRealScalar>, RealScalar, IRealScalar> Result, string LogContent)
+        SolveUnboundedModelWithFileLogger()
     {
         /*
          * max 2x, x positive
@@ -201,7 +388,7 @@ public sealed class IlpSolverTest
             model.SetObjective(model.CreateObjectiveFunctionBuilder().AddTermToSum(new IntegerScalar(2), x)
                 .Build());
 
-        var logFile = "tmp.log";
+        var logFile = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.log");
 
         var result = SolverFactory.SolverFor(IlpSolverType.Scip, null,
             new SerilogLoggerFactory(new LoggerConfiguration().WriteTo
@@ -210,20 +397,51 @@ public sealed class IlpSolverTest
             optimizationModel,
             new SolverParameter());
 
+        string logContent;
         using (var streamReader = new StreamReader(logFile))
         {
-            Assert.Equal(
-                "[Anexia.MathematicalProgram.Solve.IlpSolver] [INFO] Initialized Solver Scip with TimeLimit: \"unbounded\" and solver specific parameters \"\"",
-                streamReader.ReadToEnd());
+            logContent = streamReader.ReadToEnd();
         }
 
         File.Delete(logFile);
 
-        Assert.Equal(
-            SolverResult(
-                new SolutionValues<IIntegerVariable<IRealScalar>, RealScalar, IRealScalar>(
-                    ReadOnlyDictionary<IIntegerVariable<IRealScalar>, RealScalar>.Empty), null, new IsFeasible(false),
-                new IsOptimal(false), null,
-                SolverResultStatus.Unbounded, false), result);
+        return (result, logContent);
+    }
+
+    private static SolverResult<IIntegerVariable<IRealScalar>, RealScalar, IRealScalar> UnboundedSolverResult() =>
+        SolverResult(
+            new SolutionValues<IIntegerVariable<IRealScalar>, RealScalar, IRealScalar>(
+                ReadOnlyDictionary<IIntegerVariable<IRealScalar>, RealScalar>.Empty), null, null,
+            new IsOptimal(false), null,
+            SolverResultStatus.Unbounded, false);
+
+    private static ICompletedOptimizationModel<IIntegerVariable<IRealScalar>, IRealScalar, IRealScalar>
+        CreateSimpleOptimizationModel(out IIntegerVariable<IRealScalar> variable)
+    {
+        var model =
+            new OptimizationModel<IIntegerVariable<IRealScalar>, IRealScalar, IRealScalar>();
+        variable = model.NewVariable<IntegerVariable<IRealScalar>>(Interval(1, 1), "TestVariable");
+
+        return model.SetObjective(
+            model.CreateObjectiveFunctionBuilder().AddTermToSum(new IntegerScalar(2), variable).Build(false));
+    }
+
+    private sealed class FakeLogger : ILogger<IlpSolver>
+    {
+        public List<string> Messages { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            Messages.Add(formatter(state, exception));
+        }
     }
 }

@@ -49,7 +49,7 @@ public static class IlpExample
         // Create SCIP Solver and solve model. Different settings can be set via out parameters.
         var result = SolverFactory.SolverFor(IlpSolverType.HiGhs).Solve(optimizationModel,
             new SolverParameter(new EnableSolverOutput(false), RelativeGap.EMinus7,
-                new TimeLimitInMilliseconds(10000), new NumberOfThreads(2), ExportModelFilePath: "model.txt"));
+                new TimeLimitInMilliseconds(10000), new NumberOfThreads(2), ExportModelFilePaths: "model.txt"));
 
         Console.WriteLine(result);
         // Output: ObjectiveValue: 2, IsFeasible: True, IsOptimal: True, OptimalityGap: 0 

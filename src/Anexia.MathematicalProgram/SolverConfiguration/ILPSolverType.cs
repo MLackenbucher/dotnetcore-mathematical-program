@@ -27,6 +27,12 @@ public enum IlpSolverType
     /// </summary>
     [EnumMember(Value = "GUROBI_MIXED_INTEGER_PROGRAMMING")]
     GurobiIntegerProgramming,
+    
+    /// <summary>
+    /// <see href="https://gurobi.com">Gurobi</see> solver. A licence is needed for usage.
+    /// </summary>
+    [EnumMember(Value = "GUROBI_NATIVE_MIXED_INTEGER_PROGRAMMING")]
+    GurobiNativeIntegerProgramming,
 
     /// <summary>
     /// <see href="https://www.scipopt.org/">SCIP</see> solver.

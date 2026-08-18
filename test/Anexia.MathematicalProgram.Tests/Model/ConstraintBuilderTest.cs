@@ -26,7 +26,7 @@ public sealed class ConstraintBuilderTest
         var v1 = model.NewVariable<IntegerVariable<IRealScalar>>(new RealInterval(0, 1), "v1");
         var v2 = model.NewVariable<IntegerVariable<IRealScalar>>(new RealInterval(0, 2), "v2");
         var v3 = model.NewVariable<IntegerVariable<IRealScalar>>(new RealInterval(0, 3), "v3");
-        
+
         var constraint = model.CreateConstraintBuilder()
             .AddTermToSum(1, v1)
             .AddTermToSum(2, v2)
@@ -55,6 +55,41 @@ public sealed class ConstraintBuilderTest
 
         Assert.Equal(
             Constraint(WeightedSum((v1, 1), (v2, 2), (v3, -3)), Interval(-10, 20)),
+            constraint);
+    }
+
+    [Fact]
+    public void ConstraintBuilderAddExistingWeightedSumReturnsCorrectResult()
+    {
+        var model = new OptimizationModel<IIntegerVariable<IRealScalar>, RealScalar, IRealScalar>();
+
+        var v1 = model.NewVariable<IntegerVariable<IRealScalar>>(new RealInterval(0, 1), "v1");
+        var v2 = model.NewVariable<IntegerVariable<IRealScalar>>(new RealInterval(0, 2), "v2");
+        var weightedSum = model.CreateWeightedSumBuilder()
+            .AddTermToSum(1, v1)
+            .AddTermToSum(2, v2)
+            .Build();
+
+        var constraint = model.CreateConstraintBuilder()
+            .AddTermToSum(3, v1)
+            .AddWeightedSum(weightedSum)
+            .Build(new IntegralInterval(-10, 20));
+
+        Assert.Equal(
+            Constraint(WeightedSum((v1, 4), (v2, 2)), Interval(-10, 20)),
+            constraint);
+    }
+
+    [Fact]
+    public void ConstraintBuilderBuildsEmptyConstraintWhenNoTermsWereAdded()
+    {
+        var model = new OptimizationModel<IIntegerVariable<IRealScalar>, RealScalar, IRealScalar>();
+
+        var constraint = model.CreateConstraintBuilder()
+            .Build(new IntegralInterval(0, 0));
+
+        Assert.Equal(new Constraint<IIntegerVariable<IRealScalar>, RealScalar, IRealScalar>(
+                new WeightedSum<IIntegerVariable<IRealScalar>, RealScalar, IRealScalar>(), new IntegralInterval(0, 0)),
             constraint);
     }
 

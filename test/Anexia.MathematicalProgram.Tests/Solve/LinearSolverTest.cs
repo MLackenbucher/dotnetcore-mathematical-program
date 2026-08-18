@@ -94,13 +94,23 @@ public sealed class LinearSolverTest
             model.SetObjective(
                 model.CreateObjectiveFunctionBuilder().AddTermToSum(new RealScalar(2), v1).Build(false));
 
-        var result = SolverFactory.SolverFor(LpSolverType.Scip).Solve(optimizationModel,
-            new SolverParameter(new EnableSolverOutput(true), ExportModelFilePath: "model.txt"));
+        var exportFilePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.mps");
 
-        var resultFromModel = new LpSolver(LpSolverType.Scip).Solve(
-            new ModelAsMpsFormat(File.ReadAllText("model.txt")), new SolverParameter(new EnableSolverOutput(true)));
+        try
+        {
+            var result = SolverFactory.SolverFor(LpSolverType.Scip).Solve(optimizationModel,
+                new SolverParameter(new EnableSolverOutput(true), ExportModelFilePaths: exportFilePath));
 
-        Assert.Equal(result, resultFromModel);
+            var resultFromModel = new LpSolver(LpSolverType.Scip).Solve(
+                new ModelAsMpsFormat(File.ReadAllText(exportFilePath)),
+                new SolverParameter(new EnableSolverOutput(true)));
+
+            Assert.Equal(result, resultFromModel);
+        }
+        finally
+        {
+            File.Delete(exportFilePath);
+        }
     }
 
     [Fact]

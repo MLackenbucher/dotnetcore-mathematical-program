@@ -25,7 +25,7 @@ public interface ISolverResult<in TVariable, TCoefficient, in TVariableInterval>
     /// <summary>
     /// Indicates whether a solution to the optimization problem is feasible.
     /// </summary>
-    IsFeasible IsFeasible { get; }
+    IsFeasible? IsFeasible { get; }
 
     /// <summary>
     /// Indicates whether the solution to the optimization problem is optimal.

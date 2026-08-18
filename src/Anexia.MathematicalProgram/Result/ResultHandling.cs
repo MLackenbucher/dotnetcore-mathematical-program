@@ -11,6 +11,7 @@ using Anexia.MathematicalProgram.Model.Variable;
 using Anexia.MathematicalProgram.Solve;
 using Google.OrTools.ModelBuilder;
 using Google.OrTools.Sat;
+using Gurobi;
 
 namespace Anexia.MathematicalProgram.Result;
 
@@ -35,7 +36,7 @@ internal static class ResultHandling
                 : SolverResult(SolverResultStatus.Feasible, switchedToDefaultSolver, solutionValues, objectiveValue,
                     bestBound, true),
             SolveStatus.INFEASIBLE => SolverResult<TVariable, TCoefficient, TVariableInterval>(
-                SolverResultStatus.Infeasible, switchedToDefaultSolver),
+                SolverResultStatus.Infeasible, switchedToDefaultSolver, isFeasible: false),
             SolveStatus.UNBOUNDED => SolverResult<TVariable, TCoefficient, TVariableInterval>(
                 SolverResultStatus.Unbounded, switchedToDefaultSolver),
             SolveStatus.ABNORMAL => SolverResult<TVariable, TCoefficient, TVariableInterval>(
@@ -60,6 +61,34 @@ internal static class ResultHandling
         };
     }
 
+    internal static ISolverResult<TVariable, TCoefficient, TVariableInterval>
+        Handle<TVariable, TCoefficient, TVariableInterval>(int resultStatus,
+            bool switchedToDefaultSolver,
+            ISolutionValues<TVariable, TCoefficient, TVariableInterval>? solutionValues = null,
+            double? objectiveValue = null,
+            double? bestBound = null) where TVariable : IVariable<TVariableInterval>
+        where TVariableInterval : IAddableScalar<TVariableInterval, TVariableInterval>
+    {
+        return resultStatus switch
+        {
+            GRB.Status.OPTIMAL => objectiveValue is null
+                ? throw new MathematicalProgramException("Mathematical program could not be solved.")
+                : SolverResult(SolverResultStatus.Optimal, switchedToDefaultSolver, solutionValues, objectiveValue,
+                    bestBound, true, true),
+            GRB.Status.INFEASIBLE => SolverResult<TVariable, TCoefficient, TVariableInterval>(
+                SolverResultStatus.Infeasible, switchedToDefaultSolver, isFeasible: false),
+            GRB.Status.UNBOUNDED => SolverResult<TVariable, TCoefficient, TVariableInterval>(
+                SolverResultStatus.Unbounded, switchedToDefaultSolver),
+            GRB.Status.INTERRUPTED => SolverResult<TVariable, TCoefficient, TVariableInterval>(
+                SolverResultStatus.CancelledByUser, switchedToDefaultSolver),
+            GRB.Status.INF_OR_UNBD => SolverResult<TVariable, TCoefficient, TVariableInterval>(
+                SolverResultStatus.InfOrUnbound, switchedToDefaultSolver),
+            GRB.Status.TIME_LIMIT => SolverResult<TVariable, TCoefficient, TVariableInterval>(
+                SolverResultStatus.Timelimit, switchedToDefaultSolver),
+            _ => throw new MathematicalProgramException($"Unknown result status in solver. {resultStatus}")
+        };
+    }
+
     internal static ISolverResult<TVariable, TCoefficient, TVariableInterval> Handle<TVariable, TCoefficient,
         TVariableInterval>(CpSolverStatus resultStatus,
         ISolutionValues<TVariable, TCoefficient, TVariableInterval>? solutionValues = null,
@@ -79,7 +108,7 @@ internal static class ResultHandling
                     bestBound, true),
             CpSolverStatus.Infeasible =>
                 SolverResult<TVariable, TCoefficient, TVariableInterval>(SolverResultStatus.Infeasible,
-                    false),
+                    false, isFeasible: false),
             CpSolverStatus.Unknown => SolverResult<TVariable, TCoefficient, TVariableInterval>(
                 SolverResultStatus.UnknownStatus,
                 false),
@@ -90,11 +119,50 @@ internal static class ResultHandling
         };
     }
 
+    internal static ISolverResult<TVariable, TCoefficient, TVariableInterval> HandleGurobi<TVariable, TCoefficient,
+        TVariableInterval>(int resultStatus,
+        ISolutionValues<TVariable, TCoefficient, TVariableInterval>? solutionValues = null,
+        double? objectiveValue = null,
+        double? bestBound = null) where TVariableInterval : IAddableScalar<TVariableInterval, TVariableInterval>
+        where TVariable : IVariable<TVariableInterval>
+    {
+        if (resultStatus == GRB.Status.INFEASIBLE)
+        {
+            return SolverResult<TVariable, TCoefficient, TVariableInterval>(
+                SolverResultStatus.Infeasible, false, isFeasible: false);
+        }
+
+        if (objectiveValue is null || bestBound is null)
+        {
+            throw new MathematicalProgramException("Mathematical program could not be solved.");
+        }
+
+        return resultStatus switch
+        {
+            GRB.Status.OPTIMAL => SolverResult(SolverResultStatus.Optimal, false, solutionValues, objectiveValue,
+                bestBound, true, true),
+            GRB.Status.SUBOPTIMAL => SolverResult(SolverResultStatus.Feasible, false, solutionValues, objectiveValue,
+                bestBound, true),
+            GRB.Status.TIME_LIMIT => SolverResult(SolverResultStatus.Timelimit, false, solutionValues, objectiveValue,
+                bestBound, true),
+            GRB.Status.INTERRUPTED => SolverResult(SolverResultStatus.CancelledByUser, false, solutionValues,
+                objectiveValue,
+                bestBound, true),
+            GRB.Status.MEM_LIMIT => SolverResult(SolverResultStatus.UnknownStatus, false, solutionValues,
+                objectiveValue,
+                bestBound, true),
+            GRB.Status.UNBOUNDED => SolverResult<TVariable, TCoefficient, TVariableInterval>(
+                SolverResultStatus.Unbounded, false),
+
+            _ => throw new MathematicalProgramException($"Unknown result status in solver. {resultStatus}")
+        };
+    }
+
     private static ISolverResult<TVariable, TCoefficient, TVariableInterval>
         SolverResult<TVariable, TCoefficient, TVariableInterval>(SolverResultStatus resultStatus,
             bool switchedToDefaultSolver,
             ISolutionValues<TVariable, TCoefficient, TVariableInterval>? solutionValues = null,
-            double? objectiveValue = null, double? bestBound = null, bool isFeasible = false, bool isOptimal = false)
+            double? objectiveValue = null, double? bestBound = null, bool? isFeasible = null, bool isOptimal = false)
         where TVariable : IVariable<TVariableInterval>
         where TVariableInterval : IAddableScalar<TVariableInterval, TVariableInterval>
     {
@@ -103,7 +171,7 @@ internal static class ResultHandling
             new SolutionValues<TVariable, TCoefficient, TVariableInterval>(ReadOnlyDictionary<TVariable, TCoefficient>
                 .Empty),
             objectiveValue is null ? null : new ObjectiveValue(objectiveValue.Value),
-            new IsFeasible(isFeasible),
+            isFeasible is null ? null : new IsFeasible(isFeasible.Value),
             new IsOptimal(isOptimal),
             objectiveValue is null || bestBound is null ? null : CalculateGap(objectiveValue.Value, bestBound.Value),
             resultStatus,
