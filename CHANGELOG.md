@@ -9,12 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added `WithWarmStart` to pass a (partial) start solution to the solver. It is set as MIP start for the native Gurobi
+- Added `WithHint` to pass a (partial) start solution to the solver. It is set as MIP start for the native Gurobi
   solver and as solution hint for OR-Tools based solvers (Gurobi, SCIP) and CP-SAT. Not forwarded to HiGHS, as
   OR-Tools crashes when passing hints to HiGHS.
 - Added `WithVariableAttributes` to pass solver specific variable attributes (hint value, hint priority, branch
   priority). Applied by the native Gurobi solver only, ignored by all other solvers.
-- Added `ToWarmStart` to reuse the solution values of a previous run as warm start.
+- Added `ToStartSolution` to reuse the solution values of a previous run as warm start.
 - Gurobi status `SOLUTION_LIMIT` is now mapped to a feasible result instead of throwing.
 
 ## [2.9.0] - 2026-07-10
